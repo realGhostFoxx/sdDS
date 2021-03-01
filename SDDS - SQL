@@ -1,0 +1,48 @@
+# generic ZVZ, careful with dates
+
+SELECT [Brand],
+    CantHL AS 'hL',
+    [CdaAprov] AS 'Order',
+    CodOferta,
+    DataFac,
+    Descriere,
+    DescrLab,
+    Discount,
+    EmitCda AS 'Sold-to ID',
+    IdDestinatar AS 'Ship-to ID',
+    LineExt AS 'Line Extension',
+    Matdebaza AS 'Sales Code',
+    Nume AS 'DSA',
+    Pe AS 'Order Date',
+    UnLg AS 'Wareshouse',
+    TipAmb AS 'PackType',
+    ValTotala AS 'Gross Value',
+    CASE
+        WHEN [Matdebaza] LIKE 'C%' THEN 'CCH' ELSE 'HRO' END AS BO
+  FROM [Stockday_Staging].[dbo].[zvz]
+  WHERE DataFac >= '2021-01-01'
+  ORDER BY [DataFac] DESC
+
+# local rolling
+
+SELECT [CUI]
+      ,[ShipTO_B2B_ID]
+      ,[SAP_ID]
+      ,[ERP_code]
+      ,[Nume_Locatie]
+      ,[Judet_Locatie]
+      ,[UAT_Locatie]
+      ,[New_TSR]
+      ,[New_ZSM]
+      ,[Channel]
+      ,[Frequency]
+      ,[Routed]
+      ,[Scope]
+      ,[Active_master_filter]
+      ,[PG]
+      ,[Warehouse]
+      ,[New_subchannel]
+      ,[Tipologie_NEW]
+  FROM [Stockday_Staging].[dbo].[Rolling]
+  WHERE SAP_ID IS NOT NULL
+  ORDER BY comenzi DESC

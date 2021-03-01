@@ -1,0 +1,100 @@
+import datetime as date
+import pandas as pd
+import numpy as np
+import math
+
+# getting the dataframe ready, from 'roling.csv' and 'sales.csv'
+
+def load_rolling():
+    '''Loading rolling in the model'''
+    path = 'documents/PM/rolling.csv'
+    df_rolling = pd.read_csv(path)
+    pd.options.display.max_columns = 99
+    keep = ['CUI', 'SAP_ID', 'ERP_code', 'Nume_Locatie',
+       'Judet_Locatie', 'UAT_Locatie', 'New_TSR', 'New_ZSM', 'Channel',
+       'Frequency', 'Routed', 'Scope', 'Active_master_filter', 'PG',
+       'Warehouse', 'New_subchannel', 'Tipologie_NEW']
+    remove = [i for i in df_rolling.columns if i not in keep]
+    df_rolling.drop(columns = remove, inplace = True)
+    df_rolling.dropna(subset = ['SAP_ID'], inplace = True)
+    df_rolling['SAP_ID'] = df_rolling['SAP_ID'].astype('int64', copy = True)
+    df_rolling['PG'] = df_rolling['PG'].fillna('ISD')
+    df_rolling['Routed'].replace('Unknown', 'No', inplace = True)
+
+    return df_rolling
+
+def load_main():
+    '''Loading zvz data in the model'''
+    path = 'documents/PM/sales.csv'
+    df_main = pd.read_csv(path)
+    pd.options.display.max_columns = 99
+    keep = ['Brand', 'hL', 'Order', 'CodOferta', 'DescrLab',
+       'Discount', 'Sold-to ID', 'SAP_ID', 'Line Extension', 'Sales Code',
+       'DSA', 'Order Date', 'Wareshouse', 'PackType', 'Gross Value', 'BO']
+    remove = [i for i in df_main.columns if i not in keep]
+    df_main.drop(columns = remove, inplace = True)
+    df_main['Order Date'] = pd.to_datetime(df_main['Order Date'], dayfirst = True)
+    df_main['Week'] = df_main['Order Date'].dt.week
+    df_main['Day_of_week'] = df_main['Order Date'].dt.weekday + 1
+    df_main['Month'] = df_main['Order Date'].dt.month
+    df_main.dropna(subset = ['Order'], inplace = True) # gets rid of not sales related rows
+    df_main.dropna(subset = ['Brand'], inplace = True) # gets rid of CO2s
+    df_main['UC'] = round(df_main['hL']*100/5.678, 3) # gibs UCs
+    df_main['Intake'] = df_main['DSA'].apply(lambda x: 'DSA' if type(x) == str else 'Webshop') # high lvl DSA filter
+
+    return df_main
+
+def merge_df():
+    '''Merges local rolling with local zvz'''
+    df = pd.merge(df_main, rolling, on = 'SAP_ID', how = 'inner')
+
+    return df
+
+def td_to_str():
+    return(str(lag['Days'])[0])
+
+today = pd.Timestamp(datetime.date(datetime.today()))
+
+rolling = load_rolling()
+df_main = load_main()
+df = merge_df()
+
+df.head(50)
+
+# getting the filters in inplace
+
+current_month = ('2021-02-01' > df['Creat pe']) & ('2021-01-01' <= df['Creat pe']) # since January -> Feb e.g.
+
+just_coke = df['BO'] == 'CCH'
+just_hro = df['BO'] == 'HRO'
+
+active = df['Active master filter'] == 'Active'
+
+routed = df['Routed'] == 'Routed'
+unrouted = df['Routed'] == 'Unrouted'
+
+arges = df['Judet Locatie'] == 'Arges'
+valcea = df['Judet Locatie'] == 'Valcea'
+prahova = df['Judet Locatie'] == 'Prahova'
+teleorman = df['Judet Locatie'] == 'Teleorman'
+dambovita = df['Judet Locatie'] == 'Dambovita'
+bucuresti = df['Judet Locatie'] == 'Bucuresti'
+cluj = df['Judet Locatie'] == 'Cluj'
+constanta = df['Judet Locatie'] == 'Constanta'
+
+# lag measurement
+
+def lag():
+    'Returns a DataFrame with SAP_ID and Days since last order based on Rolling and Main DFs'
+    lag_df = df[['SAP_ID', 'Order Date']].groupby('SAP_ID').max()
+    lag_df['Days_since'] = (today - lag_df['Order Date']).dt.days
+    lag_df['Days_since_slot'] = lag_df['Days_since'].apply(lambda x: '0-8' if x <= 8 else '8-14' if 8 < x <= 14 else '14-30' if 14 < x <= 30 else '30-60' if 30 < x <= 60 else 'ded :(')
+    lag = rolling.merge(lag_df, how = 'left', left_on = ['SAP_ID'], right_index = True)
+    lag['Days_since'] = lag['Days_since'].fillna('None for 2021')
+    lag['Days_since_slot'] = lag['Days_since_slot'].fillna('None for 2021')
+    return lag
+
+# saving df.to_excel and lag.to_excel
+
+def to_excel():
+    return df.to_excel('df.xlsx'), lag.to_excel('lag.xlsx')
